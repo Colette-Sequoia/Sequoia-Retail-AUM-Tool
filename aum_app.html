@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sequoia AUM Consolidation Tool</title>
+<style>
+:root{--navy:#1F4E79;--navy-mid:#2E75B6;--navy-light:#EBF3FB;--gold:#C9A84C;--bg:#F2F5F9;--card:#FFFFFF;--border:#D5DCE8;--text:#1A2332;--muted:#6B7A90;--green:#166534;--green-bg:#DCFCE7;--green-bd:#86EFAC;--amber:#92400E;--amber-bg:#FEF3C7;--amber-bd:#FCD34D;--red:#991B1B;--red-bg:#FEE2E2;--red-bd:#FCA5A5;--info:#1e40af;--info-bg:#EFF6FF;--info-bd:#93C5FD;--r:8px;--r-lg:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+header{background:var(--navy);color:white;height:56px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.25);position:sticky;top:0;z-index:50}
+.h-brand{display:flex;align-items:center;gap:12px}
+.h-title{font-size:16px;font-weight:700}
+.h-sub{font-size:11px;opacity:.55;margin-top:1px}
+#hdr-s{font-size:12px;padding:4px 12px;border-radius:20px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2)}
+.layout{display:grid;grid-template-columns:252px 1fr;min-height:calc(100vh - 56px)}
+.sidebar{background:var(--card);border-right:1px solid var(--border);padding:14px 10px;display:flex;flex-direction:column;gap:2px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto}
+.sb-sec{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:10px 8px 5px}
+.nb{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r);border:none;background:none;cursor:pointer;width:100%;text-align:left;font-size:13px;color:var(--text);transition:background .12s}
+.nb:hover{background:var(--bg)}
+.nb.active{background:var(--navy-light);color:var(--navy);font-weight:600}
+.nb.done .dot{background:var(--green);color:white}
+.nb.warn .dot{background:#D97706;color:white}
+.nb.err .dot{background:var(--red);color:white}
+.dot{width:22px;height:22px;border-radius:50%;background:var(--border);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;transition:all .2s}
+.nb-divider{border:none;border-top:1px solid var(--border);margin:6px 0}
+.nb-reset{color:var(--red)}
+.nb-reset .dot{background:var(--red-bg);color:var(--red)}
+.main{padding:28px 32px;overflow-y:auto}
+.page{display:none;animation:fi .18s ease}
+.page.active{display:block}
+@keyframes fi{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.ph{margin-bottom:22px}
+.pt{font-size:20px;font-weight:700;color:var(--navy)}
+.ps{color:var(--muted);font-size:13px;margin-top:3px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 1px 3px rgba(0,0,0,.07);padding:20px 22px;margin-bottom:18px}
+.ch{font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.dz{border:2px dashed var(--border);border-radius:var(--r-lg);padding:30px 20px;text-align:center;cursor:pointer;transition:all .15s;position:relative;background:var(--bg)}
+.dz:hover,.dz.over{border-color:var(--navy-mid);background:var(--navy-light)}
+.dz.done{border-color:var(--green-bd);border-style:solid;background:var(--green-bg)}
+.dz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-icon{font-size:30px;margin-bottom:8px;display:block}
+.dz-main{font-size:14px;font-weight:500;margin-bottom:3px}
+.dz-sub{font-size:12px;color:var(--muted)}
+.dz-name{font-size:13px;font-weight:600;color:var(--navy);margin-top:8px}
+.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:12px;margin-bottom:18px}
+.pc{border:1px solid var(--border);border-radius:var(--r-lg);padding:13px 15px;background:var(--card);transition:all .15s;position:relative;cursor:pointer}
+.pc.done{border-color:var(--green-bd);background:#F0FDF4}
+.pc.err{border-color:var(--red-bd);background:var(--red-bg)}
+.pc:hover{border-color:var(--navy-mid)}
+.pc input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2}
+.pn{font-weight:700;font-size:13px;margin-bottom:2px}
+.ph2{font-size:11px;color:var(--muted);font-family:monospace;line-height:1.4;margin-bottom:7px;word-break:break-all}
+.pst{font-size:12px;display:flex;align-items:center;gap:4px}
+.pst.ok{color:var(--green);font-weight:600}
+.pst.miss{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:var(--r);border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all .14s}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.bp{background:var(--navy);color:white}
+.bp:not(:disabled):hover{background:var(--navy-mid)}
+.bg{background:var(--gold);color:white}
+.bg:not(:disabled):hover{background:#B8962A}
+.bo{background:transparent;border:1px solid var(--border);color:var(--text)}
+.bo:hover{background:var(--bg)}
+.bs{padding:5px 12px;font-size:12px;border-radius:6px}
+.bg-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.fi{margin-bottom:13px}
+.fi label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:5px}
+.fi input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--text);background:white;outline:none;transition:border .14s}
+.fi input:focus{border-color:var(--navy-mid);box-shadow:0 0 0 3px rgba(46,117,182,.12)}
+.al{padding:11px 14px;border-radius:var(--r);font-size:13px;display:flex;align-items:flex-start;gap:9px;margin-bottom:12px;line-height:1.5}
+.al-i{flex-shrink:0;font-size:15px;margin-top:1px}
+.al-s{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green)}
+.al-w{background:var(--amber-bg);border:1px solid var(--amber-bd);color:var(--amber)}
+.al-e{background:var(--red-bg);border:1px solid var(--red-bd);color:var(--red)}
+.al-i2{background:var(--info-bg);border:1px solid var(--info-bd);color:var(--info)}
+.sr{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.sc{background:var(--navy-light);border-radius:var(--r-lg);padding:16px 18px;border:1px solid rgba(46,117,182,.15)}
+.sl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:5px}
+.sv{font-size:22px;font-weight:800;color:var(--navy);line-height:1}
+.ss{font-size:11px;color:var(--muted);margin-top:3px}
+.tw{overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--navy);color:white;padding:9px 13px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border)}
+tbody tr:last-child{border:none}
+tbody tr:hover{background:var(--bg)}
+td{padding:8px 13px;vertical-align:middle}
+tfoot td{background:var(--navy-light);font-weight:700;padding:9px 13px}
+.mi{border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.mi-h{display:flex;align-items:center;gap:9px;padding:9px 13px;background:var(--bg);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.mi-id{font-family:monospace;font-size:12px;font-weight:700;color:var(--red);flex:1;min-width:0;word-break:break-all}
+.mi-aum{font-size:12px;font-weight:600;color:var(--navy);white-space:nowrap}
+.mi-plat{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--navy-light);color:var(--navy);font-weight:600;white-space:nowrap}
+.mi-b{padding:12px 13px;display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end}
+.mi-b2{grid-template-columns:1fr 1fr auto}
+.mi-b .fi{margin:0}
+.mi.saved{background:#F0FDF4;border-color:var(--green-bd)}
+.mi.saved .mi-h{background:#DCFCE7}
+.bdg{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+.bdg-g{background:var(--green-bg);color:var(--green)}
+.bdg-a{background:var(--amber-bg);color:var(--amber)}
+.dl-cta{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-mid) 100%);border-radius:var(--r-lg);padding:26px 28px;color:white;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.dl-cta h2{font-size:18px;font-weight:700;margin-bottom:4px}
+.dl-cta p{font-size:13px;opacity:.75}
+.btn-dl{background:var(--gold);color:white;padding:13px 26px;font-size:15px;border-radius:var(--r);border:none;cursor:pointer;font-weight:700;display:flex;align-items:center;gap:9px;white-space:nowrap;transition:all .15s;flex-shrink:0}
+.btn-dl:disabled{opacity:.5;cursor:not-allowed}
+.btn-dl:not(:disabled):hover{background:#B8962A;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.18)}
+.prg{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:14px}
+.prg-b{height:100%;background:var(--navy-mid);border-radius:2px;transition:width .4s}
+#loading{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+#loading.show{display:flex}
+.lc{background:white;border-radius:var(--r-lg);padding:30px 40px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,.2);min-width:240px}
+.sp{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--navy);border-radius:50%;animation:spin .75s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--navy);color:white;padding:10px 18px;border-radius:var(--r);font-size:13px;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,.18);animation:su .18s ease;pointer-events:none}
+@keyframes su{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-brand">
+    <div>
+      <div class="h-title">🏦 AUM Consolidation Tool</div>
+      <div class="h-sub">Sequoia Capital Management</div>
+    </div>
+  </div>
+  <div id="hdr-s">Ready</div>
+</header>
+
+<div class="layout">
+<nav class="sidebar">
+  <div class="sb-sec">Workflow</div>
+  <button class="nb active" id="nav-template" onclick="nav('template')"><span class="dot" id="dot-template">1</span>Upload Template</button>
+  <button class="nb" id="nav-platforms" onclick="nav('platforms')"><span class="dot" id="dot-platforms">2</span>Platform Files</button>
+  <button class="nb" id="nav-process" onclick="nav('process')"><span class="dot" id="dot-process">3</span>Process</button>
+  <button class="nb" id="nav-errors" onclick="nav('errors')"><span class="dot" id="dot-errors">4</span>Fix Mappings</button>
+  <button class="nb" id="nav-download" onclick="nav('download')"><span class="dot" id="dot-download">5</span>Download</button>
+  <hr class="nb-divider">
+  <button class="nb nb-reset" onclick="resetSession()"><span class="dot">↺</span>Reset Session</button>
+  <div style="flex:1"></div>
+  <div style="padding:8px 10px;font-size:11px;color:var(--muted);line-height:1.7">
+    Server: <code style="background:var(--bg);padding:1px 5px;border-radius:4px;font-size:10px">localhost:5050</code><br>
+    <span id="srv-s">Checking…</span>
+  </div>
+</nav>
+
+<div class="main">
+
+<!-- PAGE 1 -->
+<div class="page active" id="page-template">
+  <div class="ph">
+    <div class="pt">Step 1 — Upload AUM Template</div>
+    <div class="ps">Upload the monthly AUM template <strong>.xlsx</strong> — contains the <em>ADVISOR ID | CODE MAP</em> and <em>FUND MAP</em> sheets. This is required for broker code lookups.</div>
+  </div>
+  <div class="card">
+    <div class="ch">📋 AUM Template File</div>
+    <div class="dz" id="tz" ondragover="zo(event,this)" ondragleave="zl(this)" ondrop="zd(event)">
+      <input type="file" id="tf" accept=".xlsx" onchange="uploadTemplate(this)">
+      <span class="dz-icon">📋</span>
+      <div class="dz-main">Drag & drop your AUM template here</div>
+      <div class="dz-sub">or click to browse &nbsp;·&nbsp; <strong>.xlsx</strong> only</div>
+      <div class="dz-name" id="tfn"></div>
+    </div>
+  </div>
+  <div id="tr2"></div>
+  <div class="bg-row">
+    <button class="btn bp" id="b1" onclick="nav('platforms')" disabled>Continue to Platform Files →</button>
+  </div>
+</div>
+
+<!-- PAGE 2 -->
+<div class="page" id="page-platforms">
+  <div class="ph">
+    <div class="pt">Step 2 — Upload Platform Files</div>
+    <div class="ps">Upload each platform file for the month. You don't need all 11 — just the ones with data this month.</div>
+  </div>
+  <div style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px">
+      <span id="upl-lbl">0 of 11 uploaded</span>
+    </div>
+    <div class="prg"><div class="prg-b" id="prg-b" style="width:0%"></div></div>
+  </div>
+  <div class="pg" id="pg"></div>
+  <div class="bg-row">
+    <button class="btn bp" id="b2" onclick="nav('process')" disabled>Continue to Process →</button>
+    <span id="upl-hint" style="font-size:12px;color:var(--muted)">Upload at least one platform file to continue.</span>
+  </div>
+</div>
+
+<!-- PAGE 3 -->
+<div class="page" id="page-process">
+  <div class="ph">
+    <div class="pt">Step 3 — Configure & Process</div>
+    <div class="ps">Set the report date (last day of the month), then click Process to consolidate all files.</div>
+  </div>
+  <div class="card">
+    <div class="ch">⚙️ Configuration</div>
+    <div class="fi" style="max-width:230px">
+      <label>Report Date (last day of month)</label>
+      <input type="date" id="rd">
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch">📂 Files to Process</div>
+    <div id="pfl">No files uploaded yet.</div>
+  </div>
+  <div class="bg-row">
+    <button class="btn bp" id="b3" onclick="runProcess()" disabled>⚙️ Process All Files</button>
+    <button class="btn bo bs" onclick="nav('platforms')">← Back</button>
+  </div>
+  <div id="pr" style="margin-top:18px"></div>
+</div>
+
+<!-- PAGE 4 -->
+<div class="page" id="page-errors">
+  <div class="ph">
+    <div class="pt">Step 4 — Review & Fix Mappings</div>
+    <div class="ps">Advisor IDs or fund names not found in your template are listed below. Fill in the details, click <strong>Save</strong>, then click <strong>Re-process with fixes</strong>.</div>
+  </div>
+  <div id="ec"><div class="al al-i2"><span class="al-i">ℹ️</span>Run Step 3 first to see mapping results.</div></div>
+  <div class="bg-row" id="ea" style="display:none">
+    <button class="btn bp" onclick="reprocess()">↺ Re-process with fixes</button>
+    <button class="btn bo" onclick="nav('download')">Skip → Download</button>
+  </div>
+</div>
+
+<!-- PAGE 5 -->
+<div class="page" id="page-download">
+  <div class="ph">
+    <div class="pt">Step 5 — Download Excel Output</div>
+    <div class="ps">Your consolidated AUM report is ready. Review the summary and download.</div>
+  </div>
+  <div id="dc"><div class="al al-w"><span class="al-i">⚠️</span>Run Step 3 first to generate the output.</div></div>
+</div>
+
+</div><!-- /main -->
+</div><!-- /layout -->
+
+<div id="loading">
+  <div class="lc">
+    <div class="sp"></div>
+    <div id="lm" style="font-size:14px;font-weight:600;color:var(--navy)">Processing…</div>
+    <div id="ls" style="font-size:12px;color:var(--muted);margin-top:3px"></div>
+  </div>
+</div>
+
+<script>
+// API URL detection: use production URL if on Render, otherwise localhost
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:5050'
+  : window.location.origin;
+const API = API_URL;
+
+const PLATS = [
+  {key:"allan_gray", label:"Allan Gray",          hint:"Sequoia Capital Management - [Month Year].xlsx",          ext:".xlsx"},
+  {key:"coruscate",  label:"Coruscate",            hint:"Data (Mapped)_[Mon Year]_[Mon Year].xlsx",                ext:".xlsx"},
+  {key:"gla",        label:"GLA (Momentum LISP)", hint:"NMG GLA Funds AUA and Flows - [MonYear].xlsx",            ext:".xlsx"},
+  {key:"glacier",    label:"Glacier",              hint:"PTY0000514927_[YYYYMMDD].CSV",                            ext:".csv,.CSV"},
+  {key:"momentum",   label:"Momentum",             hint:"Consolidated_Sequoia_Capital_Management_[YYYY-MM].csv",   ext:".csv"},
+  {key:"ninety_one", label:"Ninety One",           hint:"[DD Mon Year]_Model Portfolio Details.xlsx",              ext:".xlsx"},
+  {key:"pps",        label:"PPS",                  hint:"AUMReport[YYYYMMDD]_SequoiaCapitalManagement.csv / .xlsx",ext:".csv,.xlsx"},
+  {key:"investec",   label:"Investec",             hint:"Sequoia Accumulator Portfolio - Client Attribution.xlsx", ext:".xlsx"},
+  {key:"wealthport", label:"Wealthport",           hint:"Sequoia Capital AUM [DD][Mon][YY].xlsx",                  ext:".xlsx"},
+  {key:"stanlib",    label:"Stanlib",           hint:"2086288_Sequoia Capital Management - [Month Year].xlsx",       ext:".xlsx"},
+  {key:"discovery",  label:"Discovery (Copy file)",hint:"Copy of 2086288_Sequoia Capital Management - [Month Year].xlsx",ext:".xlsx"},
+];
+
+const S = {tOk:false, up:{}, proc:false, aum:0, rows:0, errs:{}, saved:{}, date:null, summary:[]};
+
+// nav
+function nav(p){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.getElementById('nav-'+p).classList.add('active');
+  if(p==='process')  refreshProc();
+  if(p==='errors')   refreshErrors();
+  if(p==='download') refreshDL();
+}
+
+function setDot(id,st){
+  const b=document.getElementById('nav-'+id), d=document.getElementById('dot-'+id);
+  b.classList.remove('done','warn','err');
+  if(st) b.classList.add(st);
+  d.textContent = st==='done'?'✓':st==='warn'?'!':st==='err'?'✕':['template','platforms','process','errors','download'].indexOf(id)+1;
+}
+
+// server check
+async function chkSrv(){
+  try{
+    const controller = new AbortController();
+    const tid = setTimeout(()=>controller.abort(), 3000);
+    const r = await fetch("http://localhost:5050/status", {signal: controller.signal});
+    clearTimeout(tid);
+    if(r.ok){
+      document.getElementById('srv-s').innerHTML='<span style="color:var(--green)">● Running</span>';
+      return true;
+    }
+  }catch(e){}
+  document.getElementById('srv-s').innerHTML='<span style="color:var(--red)">● Not running — run app.py</span>';
+  return false;
+}
+chkSrv(); setInterval(chkSrv,10000);
+
+// template upload
+async function uploadTemplate(inp){
+  const file=inp.files[0]; if(!file) return;
+  document.getElementById('tfn').textContent=file.name;
+  const ok=await chkSrv();
+  if(!ok){res('tr2','e','❌ Server not running. Open a terminal and run: <code>python app.py</code>');return;}
+  load('Loading advisor and fund maps…','Reading ADVISOR ID | CODE MAP and FUND MAP sheets');
+  const fd=new FormData(); fd.append('file',file);
+  try{
+    const r=await fetch(API+'/upload_template',{method:'POST',body:fd});
+    const d=await r.json(); hide();
+    if(d.ok){
+      S.tOk=true;
+      document.getElementById('tz').classList.add('done');
+      document.getElementById('tfn').textContent='✓ '+file.name;
+      res('tr2','s',`✅ Template loaded — <strong>${d.advisor_count}</strong> advisor mappings, <strong>${d.fund_count}</strong> fund mappings.`);
+      document.getElementById('b1').disabled=false;
+      setDot('template','done');
+      hdr(`Template: ${d.advisor_count} advisors · ${d.fund_count} funds`);
+    } else {
+      document.getElementById('tz').classList.remove('done');
+      res('tr2','e','❌ '+(d.error||'Unknown error'));
+    }
+  } catch(e){ hide(); res('tr2','e','❌ Upload failed: '+e.message); }
+}
+
+// drag drop
+function zo(e,el){e.preventDefault();el.classList.add('over');}
+function zl(el){el.classList.remove('over');}
+function zd(e){
+  e.preventDefault();
+  document.getElementById('tz').classList.remove('over');
+  const file=e.dataTransfer.files[0]; if(!file) return;
+  const inp=document.getElementById('tf');
+  const dt=new DataTransfer(); dt.items.add(file); inp.files=dt.files;
+  uploadTemplate(inp);
+}
+
+// platform grid
+function buildGrid(){
+  document.getElementById('pg').innerHTML=PLATS.map(p=>`
+    <div class="pc" id="pc-${p.key}">
+      <input type="file" accept="${p.ext}" onchange="upPlat('${p.key}',this)" title="Upload ${p.label}">
+      <div class="pn">${p.label}</div>
+      <div class="ph2">${p.hint}</div>
+      <div class="pst miss" id="ps-${p.key}">⬜ Not uploaded</div>
+    </div>`).join('');
+}
+
+async function upPlat(key,inp){
+  const file=inp.files[0]; if(!file) return;
+  load(`Uploading ${file.name}…`,'');
+  const fd=new FormData(); fd.append('platform',key); fd.append('file',file);
+  try{
+    const r=await fetch(API+'/upload_platform',{method:'POST',body:fd});
+    const d=await r.json(); hide();
+    if(d.ok){
+      S.up[key]=file.name;
+      document.getElementById('pc-'+key).classList.add('done');
+      const st=document.getElementById('ps-'+key);
+      st.className='pst ok'; st.textContent='✅ '+file.name;
+      updPrg(); toast('Uploaded: '+file.name);
+    } else {
+      document.getElementById('pc-'+key).classList.add('err');
+      document.getElementById('ps-'+key).className='pst miss';
+      document.getElementById('ps-'+key).textContent='❌ '+(d.error||'Error');
+    }
+  } catch(e){ hide(); toast('Upload failed — is app.py running?'); }
+}
+
+function updPrg(){
+  const n=Object.keys(S.up).length;
+  document.getElementById('upl-lbl').textContent=`${n} of 11 uploaded`;
+  document.getElementById('prg-b').style.width=(n/11*100)+'%';
+  document.getElementById('b2').disabled=(n===0);
+  document.getElementById('upl-hint').textContent=n===11?'All 11 platforms uploaded.':
+    n>0?`${11-n} platform(s) not uploaded (fine if no data this month).`:'Upload at least one platform file to continue.';
+  if(n>0) setDot('platforms','done');
+}
+
+// process page refresh
+function refreshProc(){
+  const n=Object.keys(S.up).length;
+  document.getElementById('b3').disabled=(n===0);
+  if(!document.getElementById('rd').value){
+    const now=new Date(), last=new Date(now.getFullYear(),now.getMonth()+1,0);
+    document.getElementById('rd').value=last.toISOString().split('T')[0];
+  }
+  const el=document.getElementById('pfl');
+  if(n===0){
+    el.innerHTML='<div class="al al-w"><span class="al-i">⚠️</span>No platform files uploaded. Go back to Step 2.</div>';
+  } else {
+    el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr>
+        <th style="text-align:left;padding:6px 10px;background:var(--bg);color:var(--muted);font-size:11px;border-bottom:1px solid var(--border)">Platform</th>
+        <th style="text-align:left;padding:6px 10px;background:var(--bg);color:var(--muted);font-size:11px;border-bottom:1px solid var(--border)">File</th>
+      </tr></thead><tbody>
+      ${PLATS.filter(p=>S.up[p.key]).map(p=>`
+        <tr>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--border);font-weight:600">${p.label}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--muted);font-family:monospace;font-size:12px">${S.up[p.key]}</td>
+        </tr>`).join('')}
+      </tbody></table>`;
+  }
+}
+
+// run process
+async function runProcess(){
+  const rd=document.getElementById('rd').value;
+  if(!rd){toast('Please set a report date first.');return;}
+  S.date=rd;
+  load('Processing all platform files…','Applying strip rules, mapping advisors & funds — ~30–60 seconds');
+  try{
+    const r=await fetch(API+'/process',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report_date:rd})});
+    const d=await r.json(); hide();
+    if(!r.ok||d.error){res('pr','e','❌ '+(d.error||'Processing failed'));return;}
+    S.proc=true; S.aum=d.total_aum; S.rows=d.total_rows; S.errs=d.mapping_errors||{}; S.summary=d.platform_summary||[];
+    const ec=Object.values(S.errs).flat().filter(e=>e.type!=='processing_error').length;
+    const pe=Object.values(S.errs).flat().filter(e=>e.type==='processing_error').length;
+    const sumRows=(d.platform_summary||[]).map(s=>`
+      <tr><td>${s.platform}</td>
+          <td style="text-align:right">${s.rows.toLocaleString()}</td>
+          <td style="text-align:right;font-weight:600">R ${fmt(s.aum)}</td></tr>`).join('');
+    let html=`<div class="al al-s" style="margin-bottom:14px"><span class="al-i">✅</span>
+      <div>Processing complete — <strong>${d.total_rows.toLocaleString()}</strong> rows consolidated.
+      ${pe>0?`<br><span style="color:var(--amber)">⚠️ ${pe} platform(s) had errors — check Step 4.</span>`:''}</div></div>
+      <div class="card"><div class="ch">📊 Platform Summary</div>
+      <div class="tw"><table>
+        <thead><tr><th>Platform / LISP</th><th style="text-align:right">Rows</th><th style="text-align:right">AUM (R)</th></tr></thead>
+        <tbody>${sumRows}</tbody>
+        <tfoot><tr><td>TOTAL</td><td style="text-align:right">${d.total_rows.toLocaleString()}</td>
+          <td style="text-align:right">R ${fmt(d.total_aum)}</td></tr></tfoot>
+      </table></div>`;
+    if(ec>0) html+=`<div class="al al-w" style="margin-top:12px"><span class="al-i">⚠️</span>
+      <div><strong>${ec} unmapped item(s)</strong> — go to <strong>Step 4</strong> to fix before downloading.</div></div>`;
+    else html+=`<div class="al al-s" style="margin-top:12px"><span class="al-i">✅</span>All advisor IDs and fund names mapped successfully.</div>`;
+    html+=`</div>`;
+    document.getElementById('pr').innerHTML=html;
+    setDot('process','done'); setDot('errors',ec>0?'warn':'done'); setDot('download','done');
+    hdr(`R ${fmtB(d.total_aum)} · ${d.total_rows.toLocaleString()} rows`);
+  } catch(e){ hide(); res('pr','e','❌ '+e.message); }
+}
+
+// errors page
+function refreshErrors(){
+  const ec=document.getElementById('ec'), ea=document.getElementById('ea');
+  if(!S.proc){
+    ec.innerHTML='<div class="al al-i2"><span class="al-i">ℹ️</span>Run Step 3 first.</div>';
+    ea.style.display='none'; return;
+  }
+  const all=Object.values(S.errs).flat();
+  const act=all.filter(e=>e.type!=='processing_error');
+  if(all.length===0){
+    ec.innerHTML='<div class="al al-s"><span class="al-i">✅</span>No mapping errors — all IDs and fund names resolved. Proceed to download.</div>';
+    ea.style.display='none'; return;
+  }
+  ea.style.display='flex';
+  let html=`<div class="al al-w" style="margin-bottom:14px"><span class="al-i">⚠️</span>
+    <div><strong>${act.length} unmapped item(s)</strong>. Fill in details, click <strong>Save</strong> on each, then <strong>Re-process with fixes</strong>.</div></div>`;
+  for(const [plat,errs] of Object.entries(S.errs)){
+    if(!errs?.length) continue;
+    const pe=errs.filter(e=>e.type==='processing_error');
+    const ae=errs.filter(e=>e.type==='advisor');
+    const fe=errs.filter(e=>e.type==='fund');
+    if(pe.length) html+=`<div class="card" style="border-color:var(--red-bd)"><div class="ch" style="color:var(--red)">⚠️ ${esc(plat)} — Processing Error</div>
+      ${pe.map(e=>`<div class="al al-e"><span class="al-i">❌</span><pre style="white-space:pre-wrap;font-size:11px;overflow:auto;max-height:200px">${esc(e.error)}</pre></div>`).join('')}</div>`;
+    if(ae.length) html+=`<div class="card"><div class="ch">👤 ${esc(plat)} — Unmapped Advisor IDs (${ae.length})</div>${ae.map(e=>aRow(e)).join('')}</div>`;
+    if(fe.length) html+=`<div class="card"><div class="ch">📊 ${esc(plat)} — Unmapped Fund Names (${fe.length})</div>${fe.map(e=>fRow(e)).join('')}</div>`;
+  }
+  ec.innerHTML=html;
+}
+
+function aRow(e){
+  const s=sf(e.id), saved=S.saved['a_'+s];
+  return `<div class="mi${saved?' saved':''}" id="mi-a-${s}">
+    <div class="mi-h"><span class="mi-id">${esc(e.id)}</span><span class="mi-plat">${esc(e.platform)}</span>
+      <span class="mi-aum">R ${fmt(e.aum)}</span>${saved?'<span class="bdg bdg-g">Saved</span>':''}</div>
+    <div class="mi-b">
+      <div class="fi"><label>Broker Name</label><input id="an-${s}" value="${esc(e.current_broker_name||'')}" placeholder="e.g. John Smith"></div>
+      <div class="fi"><label>Broker House Name</label><input id="ah-${s}" value="${esc(e.current_house_name||'')}" placeholder="e.g. ABC Wealth"></div>
+      <div class="fi"><label>LISP</label><input id="al-${s}" value="${esc(e.platform||'')}" placeholder="e.g. Momentum"></div>
+      <button class="btn bp bs" onclick="savA('${esc(e.id)}')">Save</button>
+    </div></div>`;
+}
+
+function fRow(e){
+  const s=sf(e.id), saved=S.saved['f_'+s];
+  return `<div class="mi${saved?' saved':''}" id="mi-f-${s}">
+    <div class="mi-h"><span class="mi-id">${esc(e.id)}</span><span class="mi-plat">${esc(e.platform)}</span>
+      <span class="mi-aum">R ${fmt(e.aum)}</span>${saved?'<span class="bdg bdg-g">Saved</span>':''}</div>
+    <div class="mi-b mi-b2">
+      <div class="fi"><label>Standardised Fund Name</label><input id="fn-${s}" value="${esc(e.current_fund_name||e.id)}" placeholder="e.g. Sequoia Balanced"></div>
+      <div class="fi"><label>Product Type</label><input id="fp-${s}" value="${esc(e.current_product||'Model')}" placeholder="Model / Fund"></div>
+      <button class="btn bp bs" onclick="savF('${esc(e.id)}')">Save</button>
+    </div></div>`;
+}
+
+async function savA(id){
+  const s=sf(id);
+  await fetch(API+'/add_mapping',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    type:'advisor',id,
+    broker_name:document.getElementById('an-'+s)?.value||'',
+    broker_house_name:document.getElementById('ah-'+s)?.value||'',
+    lisp:document.getElementById('al-'+s)?.value||''
+  })});
+  S.saved['a_'+s]=true;
+  markSaved('mi-a-'+s);
+  toast('Advisor saved: '+id);
+}
+
+async function savF(id){
+  const s=sf(id);
+  await fetch(API+'/add_mapping',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    type:'fund',id,
+    fund_name:document.getElementById('fn-'+s)?.value||id,
+    product:document.getElementById('fp-'+s)?.value||'Model'
+  })});
+  S.saved['f_'+s]=true;
+  markSaved('mi-f-'+s);
+  toast('Fund saved: '+id);
+}
+
+function markSaved(id){
+  const el=document.getElementById(id); if(!el) return;
+  el.classList.add('saved');
+  const h=el.querySelector('.mi-h');
+  if(h&&!h.querySelector('.bdg')) h.insertAdjacentHTML('beforeend','<span class="bdg bdg-g">Saved</span>');
+}
+
+async function reprocess(){
+  await runProcess();
+  setTimeout(()=>nav('errors'),150);
+}
+
+// download page
+function refreshDL(){
+  const dc=document.getElementById('dc');
+  if(!S.proc){
+    dc.innerHTML='<div class="al al-w"><span class="al-i">⚠️</span>Run Step 3 first to generate the output.</div>';
+    return;
+  }
+  const ec=Object.values(S.errs).flat().filter(e=>e.type!=='processing_error').length;
+  const ym=S.date?S.date.replace(/-/g,'').slice(0,6):'YYYYMM';
+  const ds=S.date?new Date(S.date+'T12:00:00').toLocaleDateString('en-ZA',{day:'numeric',month:'long',year:'numeric'}):'';
+
+  // Platform breakdown table rows
+  const platRows=(S.summary||[]).map(s=>`
+    <tr>
+      <td style="padding:8px 13px;font-weight:600">${esc(s.platform)}</td>
+      <td style="padding:8px 13px;text-align:right">${(s.rows||0).toLocaleString()}</td>
+      <td style="padding:8px 13px;text-align:right">R ${fmt(s.inflows||0)}</td>
+      <td style="padding:8px 13px;text-align:right">R ${fmt(s.outflows||0)}</td>
+      <td style="padding:8px 13px;text-align:right;font-weight:700;color:var(--navy)">R ${fmt(s.aum||0)}</td>
+    </tr>`).join('');
+
+  const totalInflows  = (S.summary||[]).reduce((a,s)=>a+(s.inflows||0),0);
+  const totalOutflows = (S.summary||[]).reduce((a,s)=>a+(s.outflows||0),0);
+
+  dc.innerHTML=`
+    <div class="dl-cta">
+      <div>
+        <h2>AUM_Consolidated_${ym}.xlsx</h2>
+        <p>Report date: ${ds} &nbsp;·&nbsp; ${S.rows.toLocaleString()} rows &nbsp;·&nbsp; Calibri Light 12pt</p>
+      </div>
+      <button class="btn-dl" id="bdl" onclick="doDownload()">⬇️ Download Excel</button>
+    </div>
+
+    ${ec>0
+      ? `<div class="al al-w" style="margin-bottom:16px"><span class="al-i">⚠️</span>
+          <div><strong>${ec} unmapped item(s)</strong> still unresolved — they appear in the output with blank fields.
+          <a href="#" onclick="nav('errors');return false" style="color:inherit;font-weight:600;margin-left:4px">Fix in Step 4 →</a></div></div>`
+      : `<div class="al al-s" style="margin-bottom:16px"><span class="al-i">✅</span>All mappings resolved — output is complete.</div>`}
+
+    <div class="sr">
+      <div class="sc"><div class="sl">Total AUM</div><div class="sv" style="font-size:20px">R ${fmt(S.aum)}</div><div class="ss">All platforms combined</div></div>
+      <div class="sc"><div class="sl">Data Rows</div><div class="sv">${S.rows.toLocaleString()}</div><div class="ss">Rows in output file</div></div>
+      <div class="sc"><div class="sl">Platforms</div><div class="sv">${(S.summary||[]).length}</div><div class="ss">Files processed</div></div>
+    </div>
+
+    <div class="card">
+      <div class="ch">📊 AUM by Platform</div>
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th>Platform</th>
+            <th style="text-align:right">Rows</th>
+            <th style="text-align:right">InFlows (R)</th>
+            <th style="text-align:right">OutFlows (R)</th>
+            <th style="text-align:right">AUM (R)</th>
+          </tr></thead>
+          <tbody>${platRows}</tbody>
+          <tfoot><tr>
+            <td style="padding:8px 13px;font-weight:700">TOTAL</td>
+            <td style="padding:8px 13px;text-align:right;font-weight:700">${S.rows.toLocaleString()}</td>
+            <td style="padding:8px 13px;text-align:right;font-weight:700">R ${fmt(totalInflows)}</td>
+            <td style="padding:8px 13px;text-align:right;font-weight:700">R ${fmt(totalOutflows)}</td>
+            <td style="padding:8px 13px;text-align:right;font-weight:700;color:var(--navy)">R ${fmt(S.aum)}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="card"><div class="ch">📋 Output Columns</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px 12px;font-size:12px">
+        ${['Date','Broker House Name','Broker Name','Retirement Fund Type','Participating Employer','Product','LISP','Fund Name','InFlows (R)','OutFlows (R)','NetFlows (R)','AUM (R)']
+          .map((c,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--border);color:var(--muted)"><strong style="color:var(--text)">${i+1}.</strong> ${c}</div>`).join('')}
+      </div>
+    </div>`;
+}
+
+async function doDownload(){
+  const btn=document.getElementById('bdl');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generating…';}
+  try{
+    const r=await fetch(API+'/download');
+    if(!r.ok){toast('Failed to generate Excel.');return;}
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const cd=r.headers.get('Content-Disposition')||'';
+    const fname=cd.match(/filename="?([^"]+)"?/)?.[1]||'AUM_Consolidated.xlsx';
+    const a=document.createElement('a'); a.href=url; a.download=fname; a.click();
+    URL.revokeObjectURL(url);
+    toast('Download started: '+fname);
+  } finally{ if(btn){btn.disabled=false;btn.innerHTML='⬇️ Download Excel';} }
+}
+
+// reset
+async function resetSession(){
+  if(!confirm('Reset all uploads and clear the session?')) return;
+  await fetch(API+'/reset',{method:'POST'}).catch(()=>{});
+  Object.assign(S,{tOk:false,up:{},proc:false,aum:0,rows:0,errs:{},saved:{},date:null,summary:[]});
+  ['template','platforms','process','errors','download'].forEach((p,i)=>{
+    const b=document.getElementById('nav-'+p), d=document.getElementById('dot-'+p);
+    b.classList.remove('done','warn','err','active'); d.textContent=i+1;
+  });
+  document.getElementById('nav-template').classList.add('active');
+  document.getElementById('tz').classList.remove('done');
+  document.getElementById('tfn').textContent='';
+  document.getElementById('tr2').innerHTML='';
+  document.getElementById('pr').innerHTML='';
+  document.getElementById('ec').innerHTML='<div class="al al-i2"><span class="al-i">ℹ️</span>Run Step 3 first to see mapping results.</div>';
+  document.getElementById('ea').style.display='none';
+  document.getElementById('dc').innerHTML='<div class="al al-w"><span class="al-i">⚠️</span>Run Step 3 first to generate the output.</div>';
+  document.getElementById('b1').disabled=true;
+  document.getElementById('b2').disabled=true;
+  buildGrid(); updPrg(); nav('template'); hdr('Ready'); toast('Session reset.');
+}
+
+// helpers
+const fmt=v=>Number(v||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtB=v=>(v/1e9).toFixed(3)+'B';
+const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const sf=s=>String(s||'').replace(/[^a-zA-Z0-9]/g,'_');
+const hdr=t=>document.getElementById('hdr-s').textContent=t;
+function res(id,t,html){
+  const ic={s:'✅',w:'⚠️',e:'❌',i:'ℹ️'};
+  const cls={s:'al-s',w:'al-w',e:'al-e',i:'al-i2'};
+  document.getElementById(id).innerHTML=`<div class="al ${cls[t]||'al-i2'}"><span class="al-i">${ic[t]||'ℹ️'}</span><div>${html}</div></div>`;
+}
+function load(m,s){document.getElementById('lm').textContent=m||'Processing…';document.getElementById('ls').textContent=s||'';document.getElementById('loading').classList.add('show');}
+function hide(){document.getElementById('loading').classList.remove('show');}
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';},2500);setTimeout(()=>t.remove(),2900);}
+
+// init
+buildGrid();
+</script>
+</body>
+</html>
