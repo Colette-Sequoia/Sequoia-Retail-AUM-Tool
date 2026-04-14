@@ -142,7 +142,7 @@ tfoot td{background:var(--navy-light);font-weight:700;padding:9px 13px}
   <button class="nb nb-reset" onclick="resetSession()"><span class="dot">↺</span>Reset Session</button>
   <div style="flex:1"></div>
   <div style="padding:8px 10px;font-size:11px;color:var(--muted);line-height:1.7">
-    Server: <code style="background:var(--bg);padding:1px 5px;border-radius:4px;font-size:10px">localhost:5050</code><br>
+    Server: <code style="background:var(--bg);padding:1px 5px;border-radius:4px;font-size:10px" id="srv-url">Loading...</code><br>
     <span id="srv-s">Checking…</span>
   </div>
 </nav>
@@ -293,7 +293,7 @@ async function chkSrv(){
   try{
     const controller = new AbortController();
     const tid = setTimeout(()=>controller.abort(), 3000);
-    const r = await fetch("http://localhost:5050/status", {signal: controller.signal});
+    const r = await fetch(API + "/status", {signal: controller.signal});
     clearTimeout(tid);
     if(r.ok){
       document.getElementById('srv-s').innerHTML='<span style="color:var(--green)">● Running</span>';
@@ -304,6 +304,9 @@ async function chkSrv(){
   return false;
 }
 chkSrv(); setInterval(chkSrv,10000);
+
+// Display current server URL
+document.getElementById('srv-url').textContent = API.replace('http://', '').replace('https://', '');
 
 // template upload
 async function uploadTemplate(inp){
