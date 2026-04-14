@@ -3,7 +3,7 @@ services:
     name: sequoia-retail-aum
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --timeout 180 --workers 1
+    startCommand: gunicorn app:app --timeout 300 --workers 1 --worker-class sync --max-requests 1 --max-requests-jitter 0
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
