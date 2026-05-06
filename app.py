@@ -212,28 +212,77 @@ def process_gla(path, advisor_map, fund_map):
 
 
 def process_glacier(path, advisor_map, fund_map):
-    df = pd.read_csv(path, sep=";", decimal=",")
-    df.columns = ["Broker Code", "Wrap Fund Name", "Inflows", "Outflows", "Current Value"]
-    df = df.dropna(subset=["Broker Code", "Wrap Fund Name", "Current Value"])
-    df["Broker Code"] = df["Broker Code"].astype(str).str.strip()
-    df["Outflows"] = df["Outflows"].abs()
-    df = apply_strip_rules(df, "glacier", "Wrap Fund Name", "Current Value",
-                           inflow_col="Inflows", outflow_col="Outflows")
-    for c in ["Inflows", "Outflows", "Current Value"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
-    grp = df.groupby(["Broker Code", "Wrap Fund Name"], as_index=False).agg(
-        Inflows=("Inflows", "sum"), Outflows=("Outflows", "sum"), AUM=("Current Value", "sum"))
+    # Try different encodings for CSV files
+    encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
+    df = None
+    for encoding in encodings:
+        try:
+            # Glacier uses comma delimiter and period decimal (standard CSV)
+            df = pd.read_csv(path, encoding=encoding)
+            break
+        except (UnicodeDecodeError, Exception):
+            continue
+    
+    if df is None:
+        raise ValueError(f"Glacier: Could not read CSV with any supported encoding")
+    
+    # Clean column names
+    df.columns = [str(c).strip() for c in df.columns]
+    
+    # Glacier-specific column names
+    broker_candidates = ["BRK_CD", "Broker Code", "BrokerCode", "Advisor Code"]
+    fund_candidates = ["WRP_FND_NAME", "Wrap Fund Name", "Fund Name", "Portfolio Name"]
+    value_candidates = ["CURRENT_VALUE", "Current Value", "Market Value", "Value", "AUM"]
+    inflow_candidates = ["INFLOW_AMT", "Inflows", "Inflow", "Gross Inflow"]
+    outflow_candidates = ["OUTFLOW_AMT", "Outflows", "Outflow", "Gross Outflow"]
+    
+    broker_col = next((c for c in broker_candidates if c in df.columns), None)
+    fund_col = next((c for c in fund_candidates if c in df.columns), None)
+    value_col = next((c for c in value_candidates if c in df.columns), None)
+    inflow_col = next((c for c in inflow_candidates if c in df.columns), None)
+    outflow_col = next((c for c in outflow_candidates if c in df.columns), None)
+    
+    if not all([broker_col, fund_col, value_col]):
+        raise ValueError(f"Glacier: Missing required columns. Found: {list(df.columns)}")
+    
+    df = df.dropna(subset=[broker_col, fund_col, value_col])
+    df[broker_col] = df[broker_col].astype(str).str.strip()
+    
+    # Convert numeric columns
+    df[value_col] = pd.to_numeric(df[value_col], errors="coerce").fillna(0)
+    if inflow_col and inflow_col in df.columns:
+        df[inflow_col] = pd.to_numeric(df[inflow_col], errors="coerce").fillna(0)
+    if outflow_col and outflow_col in df.columns:
+        df[outflow_col] = pd.to_numeric(df[outflow_col], errors="coerce").fillna(0).abs()
+    
+    # Apply strip rules BEFORE grouping
+    df = apply_strip_rules(df, "glacier", fund_col, value_col,
+                           inflow_col=inflow_col, outflow_col=outflow_col)
+    
+    # Group and aggregate
+    agg_dict = {value_col: 'sum'}
+    if inflow_col and inflow_col in df.columns:
+        agg_dict[inflow_col] = 'sum'
+    if outflow_col and outflow_col in df.columns:
+        agg_dict[outflow_col] = 'sum'
+    
+    grp = df.groupby([broker_col, fund_col], as_index=False).agg(agg_dict)
+    
     rows = []
     for _, row in grp.iterrows():
-        adv = map_advisor(row["Broker Code"], advisor_map)
-        std_fund, product = map_fund(row["Wrap Fund Name"], fund_map)
-        rows.append({"ID": row["Broker Code"], "Broker House Name": adv["Broker House Name"],
+        adv = map_advisor(row[broker_col], advisor_map)
+        std_fund, product = map_fund(row[fund_col], fund_map)
+        
+        inf = row.get(inflow_col, 0) if inflow_col and inflow_col in row.index else 0
+        out = row.get(outflow_col, 0) if outflow_col and outflow_col in row.index else 0
+        
+        rows.append({"ID": row[broker_col], "Broker House Name": adv["Broker House Name"],
                      "Broker Name": adv["Broker Name"], "Product": product, "LISP": "Glacier",
-                     "Fund Name Raw": row["Wrap Fund Name"], "Fund Name": std_fund,
-                     "InFlows (R)":  row["Inflows"]  if row["Inflows"]  != 0 else np.nan,
-                     "OutFlows (R)": row["Outflows"] if row["Outflows"] != 0 else np.nan,
-                     "NetFlows (R)": row["Inflows"] - row["Outflows"] if (row["Inflows"] != 0 or row["Outflows"] != 0) else np.nan,
-                     "AUM (R)": row["AUM"]})
+                     "Fund Name Raw": row[fund_col], "Fund Name": std_fund,
+                     "InFlows (R)":  inf if inf != 0 else np.nan,
+                     "OutFlows (R)": out if out != 0 else np.nan,
+                     "NetFlows (R)": (inf - out) if (inf != 0 or out != 0) else np.nan,
+                     "AUM (R)": row[value_col]})
     return pd.DataFrame(rows)
 
 
@@ -270,18 +319,36 @@ def process_momentum(path, advisor_map, fund_map):
 
 def process_ninety_one(path, advisor_map, fund_map):
     df = pd.read_excel(path, sheet_name="Model Portfolio Summary Flows")
-    df.columns = ["Advisor Number", "Model Name", "Closing AUM"]
-    df = df.dropna(subset=["Advisor Number", "Model Name", "Closing AUM"])
-    df["Advisor Number"] = df["Advisor Number"].astype(str).str.strip()
+    df.columns = [str(c).strip() for c in df.columns]
+    
+    # Find required columns flexibly
+    adv_col = next((c for c in df.columns if "advisor" in c.lower() and "number" in c.lower()), None)
+    if not adv_col:
+        adv_col = next((c for c in df.columns if "advisor" in c.lower() or "adviser" in c.lower()), None)
+    
+    mod_col = next((c for c in df.columns if "model" in c.lower() and "name" in c.lower()), None)
+    if not mod_col:
+        mod_col = next((c for c in df.columns if "model" in c.lower() or "portfolio" in c.lower()), None)
+    
+    aum_col = next((c for c in df.columns if "closing" in c.lower() and "aum" in c.lower()), None)
+    if not aum_col:
+        aum_col = next((c for c in df.columns if "aum" in c.lower() or "value" in c.lower()), None)
+    
+    if not all([adv_col, mod_col, aum_col]):
+        raise ValueError(f"Ninety One: Missing required columns. Found columns: {list(df.columns)}")
+    
+    df = df.dropna(subset=[adv_col, mod_col, aum_col])
+    df[adv_col] = df[adv_col].astype(str).str.strip()
+    
     rows = []
     for _, row in df.iterrows():
-        adv = map_advisor(row["Advisor Number"], advisor_map)
-        std_fund, product = map_fund(row["Model Name"], fund_map)
-        rows.append({"ID": row["Advisor Number"], "Broker House Name": adv["Broker House Name"],
+        adv = map_advisor(row[adv_col], advisor_map)
+        std_fund, product = map_fund(row[mod_col], fund_map)
+        rows.append({"ID": row[adv_col], "Broker House Name": adv["Broker House Name"],
                      "Broker Name": adv["Broker Name"], "Product": product, "LISP": "Ninety One",
-                     "Fund Name Raw": row["Model Name"], "Fund Name": std_fund,
+                     "Fund Name Raw": row[mod_col], "Fund Name": std_fund,
                      "InFlows (R)": np.nan, "OutFlows (R)": np.nan, "NetFlows (R)": np.nan,
-                     "AUM (R)": row["Closing AUM"]})
+                     "AUM (R)": row[aum_col]})
     return pd.DataFrame(rows)
 
 
@@ -510,12 +577,20 @@ def process_discovery(path, advisor_map, fund_map):
     df = pd.read_excel(path, sheet_name="AUM", header=0)
     df.columns = [str(c).strip() for c in df.columns]
     
-    # Find required columns flexibly
-    adv_col = next((c for c in ["Advisor Code","AdvisorCode","Adviser Code","Adviser"] if c in df.columns), None)
-    mod_col = next((c for c in ["Model Name","ModelName","Model Portfolio Name"] if c in df.columns), None)
-    aum_col = next((c for c in ["AUM","Market Value","Value"] if c in df.columns), None)
-    inf_col = next((c for c in ["Inflows","Inflow"] if c in df.columns), None)
-    out_col = next((c for c in ["Outflows","Outflow"] if c in df.columns), None)
+    # Find required columns flexibly with more variants
+    adv_candidates = ["Broker ID number", "BROKER_ENTITY", "BROKER_HOUSE_ENTITY", "Advisor Code", 
+                      "AdvisorCode", "Adviser Code", "Adviser", "Broker Code"]
+    mod_candidates = ["Model Portfolio NAME", "Model Portfolio Name", "Model Name", "ModelName", 
+                      "Portfolio Name", "Model Code"]
+    aum_candidates = ["AUM", "Market Value", "Value", "Closing Value", "Current Value"]
+    inf_candidates = ["Inflows", "Inflow", "INFLN", "IMPLN"]
+    out_candidates = ["Outflows", "Outflow", "OUTFLN"]
+    
+    adv_col = next((c for c in adv_candidates if c in df.columns), None)
+    mod_col = next((c for c in mod_candidates if c in df.columns), None)
+    aum_col = next((c for c in aum_candidates if c in df.columns), None)
+    inf_col = next((c for c in inf_candidates if c in df.columns), None)
+    out_col = next((c for c in out_candidates if c in df.columns), None)
     
     if not all([adv_col, mod_col, aum_col]):
         raise ValueError(f"Discovery: Missing required columns. Found: {list(df.columns)}")
