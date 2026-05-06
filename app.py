@@ -269,7 +269,7 @@ def process_momentum(path, advisor_map, fund_map):
 
 
 def process_ninety_one(path, advisor_map, fund_map):
-    df = pd.read_excel(path, sheet_name="Sheet2")
+    df = pd.read_excel(path, sheet_name="Model Portfolio Summary Flows")
     df.columns = ["Advisor Number", "Model Name", "Closing AUM"]
     df = df.dropna(subset=["Advisor Number", "Model Name", "Closing AUM"])
     df["Advisor Number"] = df["Advisor Number"].astype(str).str.strip()
@@ -363,12 +363,26 @@ def process_investec(path, advisor_map, fund_map):
     contains 'Investec Life' or is a client name (not the fund manager name).
     Original script caused ~R32M double-count.
     """
-    # Try the known sheet name first, fall back to first sheet
-    try:
-        df = pd.read_excel(path, sheet_name="Feb26")
-    except Exception:
-        df = pd.read_excel(path, sheet_name=0)
-
+    # Find the latest month sheet (Jan26, Feb26, Mar26, etc.)
+    xl = pd.ExcelFile(path)
+    month_pattern = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    
+    # Look for sheets matching month pattern (e.g., "Jan26", "Feb26")
+    month_sheets = []
+    for sheet in xl.sheet_names:
+        for month in month_pattern:
+            if sheet.startswith(month) and len(sheet) <= 6:  # e.g., "Feb26" is 5 chars
+                month_sheets.append(sheet)
+                break
+    
+    # Use the last month sheet found (usually the latest), or fallback to first sheet
+    if month_sheets:
+        target_sheet = month_sheets[-1]  # Last one is typically the latest
+    else:
+        target_sheet = xl.sheet_names[0]  # Fallback to first sheet
+    
+    df = pd.read_excel(path, sheet_name=target_sheet)
     df = df.dropna(subset=["Financial Advisor", "Value"])
     df["Financial Advisor"] = df["Financial Advisor"].astype(str).str.strip()
 
@@ -492,26 +506,42 @@ def _read_stanlib_sheet(path):
 
 
 def process_discovery(path, advisor_map, fund_map):
-    """Discovery — Copy of 2086288 file."""
-    df = _read_stanlib_sheet(path)
-    df = df.dropna(subset=["Advisor Code", "Model Name", "AUM"])
-    df["Outflows"] = df["Outflows"].abs()
-    df = apply_strip_rules(df, "stanlib", "Model Name", "AUM",
-                           inflow_col="Inflows", outflow_col="Outflows")
+    """Discovery — Uses AUM sheet."""
+    df = pd.read_excel(path, sheet_name="AUM", header=0)
+    df.columns = [str(c).strip() for c in df.columns]
+    
+    # Find required columns flexibly
+    adv_col = next((c for c in ["Advisor Code","AdvisorCode","Adviser Code","Adviser"] if c in df.columns), None)
+    mod_col = next((c for c in ["Model Name","ModelName","Model Portfolio Name"] if c in df.columns), None)
+    aum_col = next((c for c in ["AUM","Market Value","Value"] if c in df.columns), None)
+    inf_col = next((c for c in ["Inflows","Inflow"] if c in df.columns), None)
+    out_col = next((c for c in ["Outflows","Outflow"] if c in df.columns), None)
+    
+    if not all([adv_col, mod_col, aum_col]):
+        raise ValueError(f"Discovery: Missing required columns. Found: {list(df.columns)}")
+    
+    df = df.dropna(subset=[adv_col, mod_col, aum_col])
+    df[adv_col] = df[adv_col].astype(str).str.strip()
+    
+    if out_col and out_col in df.columns:
+        df[out_col] = pd.to_numeric(df[out_col], errors="coerce").fillna(0).abs()
+    
+    df = apply_strip_rules(df, "stanlib", mod_col, aum_col,
+                           inflow_col=inf_col, outflow_col=out_col)
     rows = []
     for _, row in df.iterrows():
-        adv = map_advisor(row["Advisor Code"], advisor_map)
-        std_fund, product = map_fund(row["Model Name"], fund_map)
-        in_v  = row["Inflows"]  if pd.notna(row["Inflows"])  else 0
-        out_v = row["Outflows"] if pd.notna(row["Outflows"]) else 0
-        rows.append({"ID": row["Advisor Code"], "Broker House Name": adv["Broker House Name"],
+        adv = map_advisor(row[adv_col], advisor_map)
+        std_fund, product = map_fund(row[mod_col], fund_map)
+        in_v  = row[inf_col] if inf_col and pd.notna(row.get(inf_col)) else 0
+        out_v = row[out_col] if out_col and pd.notna(row.get(out_col)) else 0
+        rows.append({"ID": row[adv_col], "Broker House Name": adv["Broker House Name"],
                      "Broker Name": adv["Broker Name"], "Product": product,
                      "LISP": "Discovery",
-                     "Fund Name Raw": row["Model Name"], "Fund Name": std_fund,
+                     "Fund Name Raw": row[mod_col], "Fund Name": std_fund,
                      "InFlows (R)":  in_v  if in_v  != 0 else np.nan,
                      "OutFlows (R)": out_v if out_v != 0 else np.nan,
                      "NetFlows (R)": in_v - out_v if (in_v != 0 or out_v != 0) else np.nan,
-                     "AUM (R)": row["AUM"]})
+                     "AUM (R)": row[aum_col]})
     return pd.DataFrame(rows)
 
 
@@ -865,11 +895,11 @@ def index():
 if __name__ == "__main__":
     import sys, os
 
-    # Detect if running on Render (via PORT environment variable)
+    # Detect if running on Render/Railway (via PORT environment variable)
     PORT = int(os.environ.get("PORT", 5050))
     HOST = "0.0.0.0" if "PORT" in os.environ else "127.0.0.1"
     
-    # Only set up local logging if not on Render
+    # Only set up local logging if not on cloud platform
     if "PORT" not in os.environ:
         log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "aum_server.log")
         import logging
